@@ -1,0 +1,46 @@
+name: Build EXE
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: 'Build ID'
+        required: false
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+
+      - name: Find main script
+        id: find_main
+        run: |
+          if (Test-Path src/main.py) { echo "script=src/main.py" >> $env:GITHUB_OUTPUT }
+          elseif (Test-Path main.py) { echo "script=main.py" >> $env:GITHUB_OUTPUT }
+          elseif (Test-Path app.py) { echo "script=app.py" >> $env:GITHUB_OUTPUT }
+          else {
+            $py = Get-ChildItem -Filter *.py -Recurse | Select-Object -First 1
+            echo "script=$($py.FullName)" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Build with PyInstaller
+        run: pyinstaller --onefile --clean ${{ steps.find_main.outputs.script }}
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: exe-build
+          path: dist/*.exe
+          retention-days: 30
